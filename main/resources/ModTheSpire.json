@@ -1,0 +1,13 @@
+{
+  "modid": "${modId}",
+  "name": "Anthony's Wrath",
+  "author": "jigejiqiangshou",
+  "description": "Negative custom-mode option: an unremovable curse card that always sits at the bottom of the draw pile and ends the run when drawn.",
+  "version": "${project.version}",
+  "sts_version": "${sts.version}",
+  "mts_version": "${mts.version}",
+  "dependencies": [
+    "basemod",
+    "stslib"
+  ]
+}
