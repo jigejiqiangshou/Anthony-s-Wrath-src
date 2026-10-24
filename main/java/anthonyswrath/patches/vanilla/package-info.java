@@ -5,7 +5,9 @@
  *
  * <ul>
  *   <li>US2 (T019): {@code CardGroup.shuffle()} / {@code CardGroup.shuffle(Random)} postfix —
- *       move this mod's curse to the bottom of the shuffled group (research §R-004);</li>
+ *       move this mod's curse to the bottom of the shuffled group (research §R-004);
+ *       implemented in {@code CardGroupShufflePatch}, with the ordering rule itself in
+ *       {@code run.DrawPileOrdering};</li>
  *   <li>US3 (T024): hand-entry judgment points if a subscriber cannot cover them (R-005);</li>
  *   <li>US5 (T029-T031): {@code CardGroup.getPurgeableCards()} filtering and the
  *       {@code FountainOfCurseRemoval} batch loop (R-008).</li>

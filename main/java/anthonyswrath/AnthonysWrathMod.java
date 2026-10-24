@@ -32,6 +32,31 @@ import java.util.List;
  * f009); the subscription is done once through {@code BaseMod.subscribe(this)}. Later user
  * stories add their own subscribers here; vanilla intercepts live in
  * {@code anthonyswrath.patches.vanilla}.</p>
+ *
+ * <p><b>User story 2 (T017).</b> The bottom-of-deck rule deliberately has <em>no</em>
+ * subscriber to register here: every shuffle path converges on the two
+ * {@code CardGroup} shuffle primitives, so the intervention is the vanilla postfix in
+ * {@code patches.vanilla.CardGroupShufflePatch} (T019), which ModTheSpire discovers and
+ * applies automatically when it loads the mod jar (it scans the jar for {@code @SpirePatch}
+ * classes — the T004 probe patches work the same way without being referenced from code).
+ * The three paths named by T017 are therefore covered without an entry-point hook:</p>
+ * <ul>
+ *   <li>battle start: {@code AbstractPlayer.preBattlePrep} calls
+ *       {@code CardGroup.initializeDeck}, which shuffles a temporary {@code DRAW_PILE} group
+ *       with {@code shuffle(Random)};</li>
+ *   <li>exhausted draw pile: {@code EmptyDeckShuffleAction} shuffles {@code discardPile} with
+ *       {@code shuffle(Random)};</li>
+ *   <li>card / relic triggered (non-exhausted): {@code ShuffleAction} (used by {@code Reboot}
+ *       and {@code DeepBreath}) calls {@code shuffle()} on {@code drawPile}, and
+ *       {@code ShuffleAllAction} (also {@code Reboot}) calls {@code shuffle(Random)} on
+ *       {@code discardPile}.</li>
+ * </ul>
+ * <p>Those are all of the {@code CardGroup.shuffle} call sites in the game jar that touch a
+ * draw pile or discard pile; the other call sites shuffle scratch groups of type
+ * {@code UNSPECIFIED} ({@code DrawPileToHandAction}, {@code UpgradeRandomCardAction},
+ * {@code TwistingMind}, {@code CardLibrary.getAnyColorCard}) and are intentionally not
+ * reordered. No vanilla code shuffles a pile's {@code group} list directly. Evidence:
+ * {@code memory/log/023}.</p>
  */
 @SpireInitializer
 public class AnthonysWrathMod

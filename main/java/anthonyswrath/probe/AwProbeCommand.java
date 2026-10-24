@@ -1,6 +1,9 @@
 package anthonyswrath.probe;
 
+import anthonyswrath.cards.AnthonysWrathCurse;
+import anthonyswrath.run.DrawPileOrdering;
 import basemod.devcommands.ConsoleCommand;
+import com.megacrit.cardcrawl.actions.common.ShuffleAction;
 import com.megacrit.cardcrawl.cards.AbstractCard;
 import com.megacrit.cardcrawl.cards.CardGroup;
 import com.megacrit.cardcrawl.cards.curses.CurseOfTheBell;
@@ -27,6 +30,10 @@ import java.util.Locale;
  * awprobe bell             shorthand for {@code addcard bell} (no argument to get wrong)
  * awprobe transform &lt;id&gt;  call AbstractDungeon.transformCard(card, true) and log the result
  * awprobe shuffledeck      call player.drawPile.shuffle() (exercises the shuffle patches)
+ * awprobe shuffleaction    queue the vanilla {@code ShuffleAction(drawPile, true)} used by the
+ *                          cards Reboot / DeepBreath (card-triggered, non-exhausted shuffle)
+ * awprobe drawpile         dump drawPile / discardPile (index 0 = bottom), no shuffle
+ * awprobe sinktest         deterministic self-check of DrawPileOrdering (US2 / FR-007)
  * </pre>
  *
  * <p>Card IDs are resolved case-insensitively and {@code bell} is an alias for
@@ -42,7 +49,8 @@ public class AwProbeCommand extends ConsoleCommand {
     private static final String BELL_ID = "CurseOfTheBell";
 
     private static final String[] SUBCOMMANDS = {
-            "info", "purge", "cursepool", "find", "addcard", "bell", "transform", "shuffledeck"
+            "info", "purge", "cursepool", "find", "addcard", "bell", "transform", "shuffledeck",
+            "shuffleaction", "drawpile", "sinktest"
     };
 
     public AwProbeCommand() {
@@ -78,6 +86,12 @@ public class AwProbeCommand extends ConsoleCommand {
                 transform(BELL_ID);
             } else if ("shuffledeck".equals(cmd)) {
                 shuffleDrawPile();
+            } else if ("shuffleaction".equals(cmd)) {
+                queueShuffleAction();
+            } else if ("drawpile".equals(cmd)) {
+                drawPile();
+            } else if ("sinktest".equals(cmd)) {
+                sinkTest();
             } else {
                 usage();
             }
@@ -90,7 +104,22 @@ public class AwProbeCommand extends ConsoleCommand {
         AbstractPlayer p = AbstractDungeon.player;
         ProbeLog.log("cmd.info", ProbeLog.state() + " | " + ProbeLog.mods()
                 + "\n    curseCardPool " + ProbeLog.ids(AbstractDungeon.curseCardPool)
+                + "\n    drawPile " + ProbeLog.ids(p == null ? null : p.drawPile)
+                + " (index 0 = bottom, last index = next drawn)"
+                + "\n    discardPile " + ProbeLog.ids(p == null ? null : p.discardPile)
                 + "\n    masterDeck " + ProbeLog.ids(p == null ? null : p.masterDeck));
+    }
+
+    /** Dumps the two piles US2 cares about without shuffling anything (T020 evidence). */
+    private static void drawPile() {
+        AbstractPlayer p = AbstractDungeon.player;
+        if (p == null) {
+            ProbeLog.log("cmd.drawpile", "player=null");
+            return;
+        }
+        ProbeLog.log("cmd.drawpile", "drawPile " + ProbeLog.ids(p.drawPile)
+                + " (index 0 = bottom, last index = next drawn)"
+                + "\n    discardPile " + ProbeLog.ids(p.discardPile));
     }
 
     private static void purge() {
@@ -192,9 +221,133 @@ public class AwProbeCommand extends ConsoleCommand {
         ProbeLog.log("cmd.shuffledeck", "after " + ProbeLog.ids(p.drawPile));
     }
 
+    /**
+     * Queues the vanilla card-triggered shuffle action on the draw pile (T020 / QS-04).
+     *
+     * <p>{@code ShuffleAction} is the action the cards {@code Reboot} and {@code DeepBreath}
+     * add; queueing it from the console exercises the real card-triggered, non-exhausted
+     * shuffle path (which calls the no-argument {@code CardGroup.shuffle()} primitive) without
+     * depending on having those cards in the deck.</p>
+     */
+    private static void queueShuffleAction() {
+        AbstractPlayer p = AbstractDungeon.player;
+        if (p == null) {
+            ProbeLog.log("cmd.shuffleaction", "player=null");
+            return;
+        }
+        ProbeLog.log("cmd.shuffleaction", "before drawPile " + ProbeLog.ids(p.drawPile));
+        AbstractDungeon.actionManager.addToTop(new ShuffleAction(p.drawPile, true));
+        ProbeLog.log("cmd.shuffleaction", "queued ShuffleAction(drawPile, triggerRelics=true)"
+                + " (same path as Reboot / DeepBreath)");
+    }
+
+    /**
+     * Deterministic in-game self-check for {@link DrawPileOrdering} (T018, FR-007).
+     *
+     * <p>The real shuffle is random, so this exercises the ordering rule on a synthetic
+     * {@code DRAW_PILE}-typed group instead: two curse copies interleaved with filler cards
+     * must become one contiguous block at indices {@code 0..1} in their previous relative
+     * order; the second call must be idempotent; a group without the curse and a
+     * non-pile group containing the curse must be reported as not handled and stay
+     * unchanged (EC-003 and the "do not reorder other groups" rule).</p>
+     */
+    private static void sinkTest() {
+        AbstractCard curseProto = CardLibrary.getCard(AnthonysWrathCurse.CARD_ID);
+        if (curseProto == null) {
+            curseProto = new AnthonysWrathCurse();
+        }
+        AbstractCard fillerProto = CardLibrary.getCard("Strike_R");
+        if (fillerProto == null) {
+            ProbeLog.log("cmd.sinktest", "SKIP no filler prototype in CardLibrary");
+            return;
+        }
+        int pass = 0;
+        int total = 0;
+
+        // Case 1: two copies interleaved -> contiguous block at the low-index end, order kept.
+        CardGroup pile = new CardGroup(CardGroup.CardGroupType.DRAW_PILE);
+        AbstractCard fillerBefore = fillerProto.makeCopy();
+        AbstractCard firstCopy = curseProto.makeCopy();
+        AbstractCard fillerMiddle = fillerProto.makeCopy();
+        AbstractCard secondCopy = curseProto.makeCopy();
+        AbstractCard fillerAfter = fillerProto.makeCopy();
+        pile.group.add(fillerBefore);
+        pile.group.add(firstCopy);
+        pile.group.add(fillerMiddle);
+        pile.group.add(secondCopy);
+        pile.group.add(fillerAfter);
+        total++;
+        boolean moved = DrawPileOrdering.sinkCurseToBottom(pile);
+        boolean grouped = moved && pile.group.size() == 5
+                && pile.group.get(0) == firstCopy
+                && pile.group.get(1) == secondCopy
+                && pile.group.get(2) == fillerBefore
+                && pile.group.get(3) == fillerMiddle
+                && pile.group.get(4) == fillerAfter;
+        pass += grouped ? 1 : 0;
+        ProbeLog.log("cmd.sinktest", "case=grouped " + verdict(grouped)
+                + " moved=" + moved + " block=" + uuidPrefix(pile, 0) + "," + uuidPrefix(pile, 1)
+                + " expectedBlock=" + shortUuid(firstCopy) + "," + shortUuid(secondCopy)
+                + " result=" + ProbeLog.ids(pile));
+
+        // Case 2: calling again changes nothing (the block already is at the bottom).
+        total++;
+        boolean groupedAgain = DrawPileOrdering.sinkCurseToBottom(pile);
+        boolean idempotent = groupedAgain && pile.group.size() == 5
+                && pile.group.get(0) == firstCopy
+                && pile.group.get(1) == secondCopy
+                && pile.group.get(2) == fillerBefore;
+        pass += idempotent ? 1 : 0;
+        ProbeLog.log("cmd.sinktest", "case=idempotent " + verdict(idempotent)
+                + " moved=" + groupedAgain + " result=" + ProbeLog.ids(pile));
+
+        // Case 3: no curse in the group -> not handled, order untouched (EC-003).
+        CardGroup plain = new CardGroup(CardGroup.CardGroupType.DRAW_PILE);
+        AbstractCard plainOne = fillerProto.makeCopy();
+        AbstractCard plainTwo = fillerProto.makeCopy();
+        plain.group.add(plainOne);
+        plain.group.add(plainTwo);
+        total++;
+        boolean movedPlain = DrawPileOrdering.sinkCurseToBottom(plain);
+        boolean untouched = !movedPlain && plain.group.size() == 2
+                && plain.group.get(0) == plainOne && plain.group.get(1) == plainTwo;
+        pass += untouched ? 1 : 0;
+        ProbeLog.log("cmd.sinktest", "case=absent " + verdict(untouched)
+                + " moved=" + movedPlain + " result=" + ProbeLog.ids(plain));
+
+        // Case 4: a non-pile (scratch) group is never reordered, even when it contains the curse.
+        CardGroup scratch = new CardGroup(CardGroup.CardGroupType.UNSPECIFIED);
+        AbstractCard scratchFill = fillerProto.makeCopy();
+        AbstractCard scratchCurse = curseProto.makeCopy();
+        scratch.group.add(scratchFill);
+        scratch.group.add(scratchCurse);
+        total++;
+        boolean movedScratch = DrawPileOrdering.sinkCurseToBottom(scratch);
+        boolean scratchUntouched = !movedScratch && scratch.group.size() == 2
+                && scratch.group.get(0) == scratchFill && scratch.group.get(1) == scratchCurse;
+        pass += scratchUntouched ? 1 : 0;
+        ProbeLog.log("cmd.sinktest", "case=scratch-group-skipped " + verdict(scratchUntouched)
+                + " moved=" + movedScratch + " result=" + ProbeLog.ids(scratch));
+
+        ProbeLog.log("cmd.sinktest", "summary pass=" + pass + "/" + total);
+    }
+
+    private static String verdict(boolean ok) {
+        return ok ? "PASS" : "FAIL";
+    }
+
+    private static String uuidPrefix(CardGroup group, int index) {
+        return index < group.group.size() ? shortUuid(group.group.get(index)) : "missing";
+    }
+
+    private static String shortUuid(AbstractCard card) {
+        String uuid = card.uuid == null ? "null" : card.uuid.toString();
+        return uuid.length() <= 8 ? uuid : uuid.substring(0, 8);
+    }
+
     private static void usage() {
         ProbeLog.log("cmd.usage", "awprobe info|purge|cursepool|find <text>|addcard <cardID>|bell"
-                + "|transform <cardID>|shuffledeck");
+                + "|transform <cardID>|shuffledeck|shuffleaction|drawpile|sinktest");
     }
 
     /**
