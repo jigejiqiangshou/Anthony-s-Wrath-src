@@ -9,6 +9,8 @@ import com.megacrit.cardcrawl.rooms.AbstractRoom;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.PrintWriter;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
@@ -19,9 +21,18 @@ import java.util.concurrent.atomic.AtomicInteger;
 /**
  * T004 timing-probe logging helper (development only, removed by T035).
  *
- * <p>Writes every line twice: stdout (MTS console) and {@code <user.home>/awprobe.log}
- * so the user can hand the log back verbatim. Never throws: a probe failure must
- * not affect the run.</p>
+ * <p>Writes every line twice: stdout (MTS console) and one log file. The file is
+ * resolved once, in this order:</p>
+ * <ol>
+ *   <li>environment variable {@code AWPROBE_LOG} (absolute path);</li>
+ *   <li>first non-empty, non-{@code #} line of {@code <user.home>/awprobe.logpath};</li>
+ *   <li>default {@code <user.home>/awprobe.log}.</li>
+ * </ol>
+ *
+ * <p>The first line written to the file records the resolved absolute path, so the
+ * reader never has to guess. Setting the target inside the project workspace makes the
+ * log readable in place (the repo's {@code *.log} ignore rule keeps it out of git).
+ * Never throws: a probe failure must not affect the run.</p>
  */
 public final class ProbeLog {
 
@@ -34,6 +45,9 @@ public final class ProbeLog {
     private static final SimpleDateFormat TS = new SimpleDateFormat("HH:mm:ss.SSS", Locale.ROOT);
     private static PrintWriter writer;
     private static boolean fileTried;
+    private static boolean resolved;
+    private static File logFile;
+    private static String logSource = "default:user.home";
 
     private ProbeLog() {
     }
@@ -44,18 +58,105 @@ public final class ProbeLog {
         writeFile(line);
     }
 
+    /** Absolute path of the resolved log target plus where the setting came from. */
+    public static synchronized String logPath() {
+        resolve();
+        return logFile.getAbsolutePath() + " (source=" + logSource + ")";
+    }
+
+    private static synchronized void resolve() {
+        if (resolved) {
+            return;
+        }
+        resolved = true;
+        String override = null;
+        String source = null;
+        try {
+            String fromEnv = System.getenv("AWPROBE_LOG");
+            if (fromEnv != null && !fromEnv.trim().isEmpty()) {
+                override = fromEnv.trim();
+                source = "env:AWPROBE_LOG";
+            }
+        } catch (Throwable ignored) {
+        }
+        if (override == null) {
+            try {
+                File cfg = new File(System.getProperty("user.home", "."), "awprobe.logpath");
+                if (cfg.isFile()) {
+                    String fromFile = firstMeaningfulLine(cfg);
+                    if (fromFile != null) {
+                        override = fromFile;
+                        source = "file:" + cfg.getAbsolutePath();
+                    }
+                }
+            } catch (Throwable ignored) {
+            }
+        }
+        if (override != null) {
+            logFile = new File(override);
+            logSource = source;
+        } else {
+            logFile = new File(System.getProperty("user.home", "."), "awprobe.log");
+            logSource = "default:user.home";
+        }
+    }
+
+    /**
+     * Reads the first non-empty, non-{@code #} line of the pointer file. Accepts UTF-8
+     * (with or without BOM) and, when the UTF-8 decode is not clean, the platform default
+     * charset, so a pointer file written by Notepad or PowerShell either way still works.
+     */
+    private static String firstMeaningfulLine(File file) {
+        try {
+            byte[] bytes = Files.readAllBytes(file.toPath());
+            String text = new String(bytes, StandardCharsets.UTF_8);
+            if (text.indexOf('\uFFFD') >= 0) {
+                text = new String(bytes);
+            }
+            if (!text.isEmpty() && text.charAt(0) == '\uFEFF') {
+                text = text.substring(1);
+            }
+            for (String rawLine : text.split("\\r?\\n")) {
+                String line = rawLine.trim();
+                if (!line.isEmpty() && !line.startsWith("#")) {
+                    return line;
+                }
+            }
+        } catch (Throwable ignored) {
+        }
+        return null;
+    }
+
     private static synchronized void writeFile(String line) {
         try {
             if (!fileTried) {
                 fileTried = true;
-                String home = System.getProperty("user.home", ".");
-                writer = new PrintWriter(new FileWriter(new File(home, "awprobe.log"), true), true);
+                resolve();
+                writer = open(logFile);
+                if (writer == null && !logFile.equals(new File(System.getProperty("user.home", "."), "awprobe.log"))) {
+                    File fallback = new File(System.getProperty("user.home", "."), "awprobe.log");
+                    writer = open(fallback);
+                }
             }
             if (writer != null) {
                 writer.println(line);
             }
         } catch (Throwable ignored) {
             // probe must never break the game
+        }
+    }
+
+    private static PrintWriter open(File file) {
+        try {
+            File parent = file.getAbsoluteFile().getParentFile();
+            if (parent != null && !parent.isDirectory()) {
+                parent.mkdirs();
+            }
+            PrintWriter out = new PrintWriter(new FileWriter(file, true), true);
+            out.println("===== awprobe log: " + file.getAbsolutePath() + " (source=" + logSource + ")");
+            return out;
+        } catch (Throwable t) {
+            return null;
         }
     }
 

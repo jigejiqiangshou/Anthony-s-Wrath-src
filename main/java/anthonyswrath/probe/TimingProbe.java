@@ -97,7 +97,8 @@ public class TimingProbe implements ISubscriber,
 
     @Override
     public void receivePostInitialize() {
-        log("hook.PostInitialize", ProbeLog.state() + " | " + ProbeLog.mods());
+        log("hook.PostInitialize", ProbeLog.state() + " | " + ProbeLog.mods()
+                + "\n    log " + ProbeLog.logPath());
         ensureConsoleAndCommand();
     }
 
