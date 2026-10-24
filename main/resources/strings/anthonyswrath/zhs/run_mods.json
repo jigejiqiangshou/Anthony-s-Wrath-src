@@ -1,0 +1,6 @@
+{
+  "anthonyswrath:AnthonysWrathOption": {
+    "NAME": "负面：安东尼之怒",
+    "DESCRIPTION": "开局时在牌组中加入一张无法移除的「安东尼之怒」诅咒牌。它永远位于抽牌堆底部；抽到它的瞬间，本局立即失败。"
+  }
+}
