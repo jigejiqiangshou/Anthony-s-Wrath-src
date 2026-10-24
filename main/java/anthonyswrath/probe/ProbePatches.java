@@ -137,6 +137,20 @@ public class ProbePatches {
         }
     }
 
+    /** Q2: completeness check - surfaces any hand entry that bypasses addToHand/addToTop. */
+    @SpirePatch(clz = CardGroup.class, method = "addToBottom", paramtypez = {AbstractCard.class})
+    public static class AddToBottom {
+        @SpirePostfixPatch
+        public static void Postfix(CardGroup __instance, AbstractCard card) {
+            AbstractPlayer p = AbstractDungeon.player;
+            if (p == null || __instance != p.hand) {
+                return;
+            }
+            log("patch.addToBottom(hand)", "card=" + card.cardID + " hand=" + ProbeLog.sizeOf(__instance)
+                    + " " + ProbeLog.pileSizes() + " | " + ProbeLog.caller());
+        }
+    }
+
     /** Q5: every call site that asks "which cards may be removed" (shop / rest / events / relics). */
     @SpirePatch(clz = CardGroup.class, method = "getPurgeableCards")
     public static class GetPurgeableCards {

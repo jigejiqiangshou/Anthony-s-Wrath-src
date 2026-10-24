@@ -59,7 +59,12 @@ public final class ProbeLog {
         }
     }
 
-    /** {@code size=N [0:id, 1:id, ...]} with index 0 = top of the group. */
+    /**
+     * {@code size=N [0:id, 1:id, ...]} with index 0 = <b>bottom</b> of the group and the
+     * <b>last</b> index = top (the next card drawn / played). Verified by the T004 probe
+     * log: {@code getTopCard()} returns {@code group.get(size-1)} and
+     * {@code Collections.shuffle} keeps that meaning; see {@code memory/log/018}.
+     */
     public static String ids(CardGroup g) {
         if (g == null) {
             return "null-group";
