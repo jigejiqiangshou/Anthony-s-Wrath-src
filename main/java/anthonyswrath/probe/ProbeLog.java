@@ -36,9 +36,10 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public final class ProbeLog {
 
-    /** Card IDs this feature cares about (reference card + future mod card). */
+    /** Card IDs this feature cares about (reference cards + this mod's card, full id). */
     private static final String[] TRACKED = {
-            "CurseOfTheBell", "Necronomicurse", "AscendersBane", "Pride", "AnthonysWrath"
+            "CurseOfTheBell", "Necronomicurse", "AscendersBane", "Pride",
+            "anthonyswrath:AnthonysWrath"
     };
 
     private static final AtomicInteger SEQ = new AtomicInteger();

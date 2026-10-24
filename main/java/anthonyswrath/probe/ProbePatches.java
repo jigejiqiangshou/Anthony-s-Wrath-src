@@ -17,6 +17,16 @@ import com.megacrit.cardcrawl.rooms.AbstractRoom;
  * <p>Each nested class patches exactly one vanilla method; handlers only log, they
  * never change behaviour. This is the evidence side of the timing probe: which
  * vanilla call site runs, in which order, and with what pile contents.</p>
+ *
+ * <p><b>Reading the shuffle logs (2026-10-24).</b> {@code patch.shuffle().after} and
+ * {@code patch.shuffle(Random).after} are the probe's own postfixes; the mod's
+ * bottom-placement postfix sits on the same two methods and ModTheSpire does not guarantee
+ * which one runs first (observed: this probe's postfix ran <em>before</em> the mod's, e.g. it
+ * logged the curse at index 4 while the next {@code awprobe drawpile} showed index 0).
+ * Ground truth for "was the card placed at the bottom" is therefore the final-state logs —
+ * {@code patch.initializeDeck.after}, {@code hook.StartBattle},
+ * {@code patch.emptyDeckShuffle.after} and {@code awprobe drawpile} — not the
+ * {@code patch.shuffle*.after} line.</p>
  */
 public class ProbePatches {
 
