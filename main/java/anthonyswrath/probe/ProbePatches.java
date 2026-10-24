@@ -31,7 +31,7 @@ public class ProbePatches {
     }
 
     /** Q1: all player-pile shuffles pass through {@code CardGroup.shuffle()} (no-arg). */
-    @SpirePatch(clz = CardGroup.class, method = "shuffle")
+    @SpirePatch(clz = CardGroup.class, method = "shuffle", paramtypez = {})
     public static class ShuffleNoArg {
         @SpirePrefixPatch
         public static void Prefix(CardGroup __instance) {
