@@ -9,7 +9,9 @@ import com.megacrit.cardcrawl.cards.CardGroup;
 import com.megacrit.cardcrawl.characters.AbstractPlayer;
 import com.megacrit.cardcrawl.dungeons.AbstractDungeon;
 import com.megacrit.cardcrawl.events.shrines.FountainOfCurseRemoval;
+import com.megacrit.cardcrawl.monsters.MonsterGroup;
 import com.megacrit.cardcrawl.rooms.AbstractRoom;
+import com.megacrit.cardcrawl.screens.DeathScreen;
 
 /**
  * T004 vanilla-side observation patches (development only, removed by T035).
@@ -274,6 +276,31 @@ public class ProbePatches {
         @SpirePostfixPatch
         public static void Postfix(AbstractPlayer __instance, int numCards) {
             log("patch.draw(int).after", "n=" + numCards + " " + ProbeLog.pileSizes());
+        }
+    }
+
+    /**
+     * US3/T025: the vanilla defeat flow starts by constructing {@code DeathScreen}; logging
+     * both sides of that constructor is the direct evidence that a defeat was settled (and
+     * that it happened only once per run).
+     */
+    @SpirePatch(clz = DeathScreen.class, method = SpirePatch.CONSTRUCTOR,
+            paramtypez = {MonsterGroup.class})
+    public static class DeathScreenCtor {
+        @SpirePrefixPatch
+        public static void Prefix(DeathScreen __instance, MonsterGroup monsters) {
+            AbstractPlayer p = AbstractDungeon.player;
+            log("patch.deathScreen.before", "isDead=" + (p == null ? "null" : p.isDead)
+                    + " hp=" + (p == null ? "?" : p.currentHealth)
+                    + " " + ProbeLog.pileSizes()
+                    + " hand=" + ProbeLog.sizeOf(p == null ? null : p.hand)
+                    + " | " + ProbeLog.caller());
+        }
+
+        @SpirePostfixPatch
+        public static void Postfix(DeathScreen __instance, MonsterGroup monsters) {
+            log("patch.deathScreen.after", "screen=" + AbstractDungeon.screen
+                    + " monsters=" + (monsters == null ? "null" : monsters.monsters.size()));
         }
     }
 

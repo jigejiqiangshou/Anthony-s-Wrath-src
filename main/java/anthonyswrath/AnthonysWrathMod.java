@@ -2,6 +2,7 @@ package anthonyswrath;
 
 import anthonyswrath.cards.AnthonysWrathCurse;
 import anthonyswrath.options.AnthonysWrathOption;
+import anthonyswrath.run.RunState;
 import anthonyswrath.run.StartDeckInjector;
 import anthonyswrath.util.ModStrings;
 import basemod.BaseMod;
@@ -10,6 +11,7 @@ import basemod.interfaces.EditCardsSubscriber;
 import basemod.interfaces.EditStringsSubscriber;
 import basemod.interfaces.ISubscriber;
 import basemod.interfaces.PostCreateStartingDeckSubscriber;
+import basemod.interfaces.StartGameSubscriber;
 import com.evacipated.cardcrawl.modthespire.lib.SpireInitializer;
 import com.megacrit.cardcrawl.cards.CardGroup;
 import com.megacrit.cardcrawl.characters.AbstractPlayer;
@@ -25,7 +27,10 @@ import java.util.List;
  *   <li>{@link EditCardsSubscriber} — registers the curse card (T011);</li>
  *   <li>{@link AddCustomModeModsSubscriber} — registers the custom-mode option (T008);</li>
  *   <li>{@link PostCreateStartingDeckSubscriber} — injects one copy into the starting deck
- *       (T012).</li>
+ *       (T012);</li>
+ *   <li>{@link StartGameSubscriber} — resets the run-scoped terminal state at every run
+ *       start, new or loaded (T024). The same hook will carry the random-curse-pool
+ *       exclusion in user story 4 (T027, research §R-007).</li>
  * </ul>
  *
  * <p>All interfaces are the ones present in the shipped BaseMod 5.56.0 jar (memory fact
@@ -57,6 +62,16 @@ import java.util.List;
  * {@code TwistingMind}, {@code CardLibrary.getAnyColorCard}) and are intentionally not
  * reordered. No vanilla code shuffles a pile's {@code group} list directly. Evidence:
  * {@code memory/log/023}.</p>
+ *
+ * <p><b>User story 3 (T024).</b> The hand-entry judgment points are vanilla intercepts, so
+ * they are applied through {@code patches.vanilla.CardGroupHandEntryPatch} (postfix on
+ * {@code CardGroup.addToHand} and on hand-targeted {@code CardGroup.addToTop}, research
+ * §R-005) rather than through a subscriber: the only BaseMod hook in that area,
+ * {@code PostDrawSubscriber}, cannot see effect-based retrieval (EC-008) and therefore
+ * cannot be the judgment point. The terminal short-circuit for later draws is the prefix in
+ * {@code patches.vanilla.AbstractPlayerDrawPatch}. What is registered here is only the
+ * {@code StartGame} subscription that clears the runtime-only defeat flags at every run
+ * start — both the new-run and the loaded-run path fire it (research §R-007).</p>
  */
 @SpireInitializer
 public class AnthonysWrathMod
@@ -64,7 +79,8 @@ public class AnthonysWrathMod
                 EditStringsSubscriber,
                 EditCardsSubscriber,
                 AddCustomModeModsSubscriber,
-                PostCreateStartingDeckSubscriber {
+                PostCreateStartingDeckSubscriber,
+                StartGameSubscriber {
 
     public AnthonysWrathMod() {
         BaseMod.subscribe(this);
@@ -93,5 +109,13 @@ public class AnthonysWrathMod
     public void receivePostCreateStartingDeck(
             AbstractPlayer.PlayerClass playerClass, CardGroup startingDeck) {
         StartDeckInjector.injectIfSelected(playerClass, startingDeck);
+    }
+
+    @Override
+    public void receiveStartGame() {
+        // T024: both the new-run and the loaded-run path reach StartGame (research §R-007),
+        // so this is where the runtime-only terminal state of the previous run is cleared.
+        // T027 will extend this hook with the random-curse-pool exclusion.
+        RunState.resetDefeatState();
     }
 }

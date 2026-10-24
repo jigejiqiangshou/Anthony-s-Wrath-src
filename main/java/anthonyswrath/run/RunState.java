@@ -25,10 +25,27 @@ import java.util.ArrayList;
  * list (no custom-mode information at all) is treated as "not selected" instead of
  * throwing.</p>
  *
- * <p>The defeat flag and its one-shot guard from data-model entity 4 arrive with T023
- * (user story 3) so that this class keeps a single owner when those tasks are implemented.</p>
+ * <p>User story 3 (T021 / T023) adds the terminal state from data-model entity 4:
+ * {@link #isDefeated()} is the only "this run already ended because of this feature" source,
+ * and {@link #tryMarkDefeated()} is the one-shot guard that settles the defeat exactly once
+ * (FR-010). Both are plain runtime flags: nothing is written to the save, and
+ * {@link #resetDefeatState()} clears them at every {@code StartGame} (new run and loaded run,
+ * research §R-007), because {@code StartGame} is the one BaseMod hook that runs on both
+ * paths.</p>
  */
 public final class RunState {
+
+    /**
+     * Set by the first hand entry of this mod's curse; never cleared until the next run
+     * (FR-008, FR-009). Data-model entity 4: the only terminal flag and query source.
+     */
+    private static boolean defeated;
+
+    /**
+     * One-shot guard for writing {@link #defeated} (FR-010, EC-004). Not an independent
+     * query source: readers use {@link #isDefeated()}.
+     */
+    private static boolean defeatGuard;
 
     /**
      * Returns whether the player selected this option for the current run.
@@ -75,6 +92,53 @@ public final class RunState {
      */
     public static boolean isOptionSelectedForNewRun() {
         return CardCrawlGame.trial instanceof CustomTrial && isOptionSelected();
+    }
+
+    /**
+     * Returns whether this run has already ended because this mod's curse entered the hand
+     * (FR-008 / FR-009; data-model entity 4).
+     *
+     * <p>Used by the terminal short-circuit in {@code patches.vanilla.AbstractPlayerDrawPatch}:
+     * after the defeat has been settled, every later draw is skipped as a whole (EC-004).
+     * </p>
+     *
+     * @return {@code true} once the defeat from this feature has been settled in this run
+     */
+    public static boolean isDefeated() {
+        return defeated;
+    }
+
+    /**
+     * Settles "this run already lost because of this feature" exactly once (FR-010).
+     *
+     * <p>The guard covers the case where several copies of the curse enter the hand within
+     * the same draw call: only the first call returns {@code true}; every later call returns
+     * {@code false} before any defeat logic runs, so the base game's defeat flow is entered
+     * once and only once (EC-004).</p>
+     *
+     * @return {@code true} when this call is the one that may settle the defeat;
+     *         {@code false} when it was already settled
+     */
+    public static boolean tryMarkDefeated() {
+        if (defeatGuard) {
+            return false;
+        }
+        defeatGuard = true;
+        defeated = true;
+        return true;
+    }
+
+    /**
+     * Clears the terminal state at the start of a run (T024).
+     *
+     * <p>{@code StartGameSubscriber.receiveStartGame} fires both for a new run and for a
+     * loaded run, after the card pools are rebuilt (research §R-007), so it is the single
+     * place where the runtime-only flags have to be reset. Nothing here is persisted: after
+     * a defeat the save is gone and the next run must start undefeated.</p>
+     */
+    public static void resetDefeatState() {
+        defeated = false;
+        defeatGuard = false;
     }
 
     private RunState() {

@@ -8,7 +8,12 @@
  *       move this mod's curse to the bottom of the shuffled group (research §R-004);
  *       implemented in {@code CardGroupShufflePatch}, with the ordering rule itself in
  *       {@code run.DrawPileOrdering};</li>
- *   <li>US3 (T024): hand-entry judgment points if a subscriber cannot cover them (R-005);</li>
+ *   <li>US3 (T022 / T024): hand-entry judgment points (R-005) — implemented in
+ *       {@code CardGroupHandEntryPatch} (postfix on {@code CardGroup.addToHand} and on
+ *       hand-targeted {@code CardGroup.addToTop}); the terminal short-circuit that skips
+ *       later draws once the run is defeated is {@code AbstractPlayerDrawPatch} (prefix on
+ *       {@code AbstractPlayer.draw(int)}), and the defeat landing point itself is
+ *       {@code run.DefeatOnDraw} (vanilla {@code DeathScreen} flow);</li>
  *   <li>US5 (T029-T031): {@code CardGroup.getPurgeableCards()} filtering and the
  *       {@code FountainOfCurseRemoval} batch loop (R-008).</li>
  * </ul>
