@@ -51,6 +51,14 @@ import java.util.List;
  * other groups (master deck, card pools, ...) and the feature must not reorder anything
  * outside the two combat piles (FR-006 scope, research §R-004). Battle start is covered by
  * the temporary {@code DRAW_PILE}-typed group built in {@code initializeDeck}.</p>
+ *
+ * <h2>Unselected runs (T026 / FR-011)</h2>
+ *
+ * <p>The rule only applies when the option was selected for this run: {@link RunState}
+ * captures that once per run at {@code StartGame} and every component consults it before
+ * acting, so an unselected run is not touched even if a copy of the card somehow reached a
+ * pile. The presence check stays as well — a selected run whose copy was transformed away
+ * is left alone (EC-003).</p>
  */
 public final class DrawPileOrdering {
 
@@ -68,6 +76,10 @@ public final class DrawPileOrdering {
      *         follow-up in that case)
      */
     public static boolean sinkCurseToBottom(CardGroup group) {
+        if (!RunState.isOptionSelected()) {
+            // FR-011 / T026: the feature never intervenes in an unselected run.
+            return false;
+        }
         if (group == null || group.group == null || group.group.isEmpty()) {
             return false;
         }

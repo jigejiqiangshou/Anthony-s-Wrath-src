@@ -47,6 +47,13 @@ import com.megacrit.cardcrawl.screens.DeathScreen;
  * Calling {@code damage} would also route through on-damage relics and powers, which this
  * feature does not require.</p>
  *
+ * <h2>Unselected runs (T026 / FR-011)</h2>
+ *
+ * <p>The judgment only applies when the option was selected for this run ({@link RunState}
+ * captures that at {@code StartGame}); an unselected run never has its game ended by this
+ * class even if a copy of the card reached the hand. The presence check (card id) stays as
+ * well, so every other card is untouched (FR-012 spirit).</p>
+ *
  * <h2>Once only (T023)</h2>
  *
  * <p>{@link RunState#tryMarkDefeated()} settles the defeat exactly once: several copies of
@@ -73,6 +80,15 @@ public final class DefeatOnDraw {
      */
     public static void onCurseEnteredHand(AbstractCard card) {
         if (card == null || !AnthonysWrathCurse.CARD_ID.equals(card.cardID)) {
+            return;
+        }
+        if (RunState.isDefeatSuspendedForProbe()) {
+            // T032 development-only FR-005 comparison: keep the card in the hand so it can
+            // be compared with the reference card (removed together with the probe by T035).
+            return;
+        }
+        if (!RunState.isOptionSelected()) {
+            // FR-011 / T026: never end an unselected run.
             return;
         }
         if (RunState.isDefeated()) {

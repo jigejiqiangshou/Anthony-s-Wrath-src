@@ -1,6 +1,7 @@
 package anthonyswrath.cards;
 
 import basemod.abstracts.CustomCard;
+import basemod.patches.com.megacrit.cardcrawl.dungeons.AbstractDungeon.NoPools;
 import com.badlogic.gdx.Gdx;
 import com.megacrit.cardcrawl.cards.AbstractCard;
 import com.megacrit.cardcrawl.characters.AbstractPlayer;
@@ -20,7 +21,20 @@ import com.megacrit.cardcrawl.monsters.AbstractMonster;
  * <p>Name and description come from {@code strings/anthonyswrath/<language>/cards.json},
  * keyed by {@link #CARD_ID}; {@code BaseMod.loadCustomStringsFile(CardStrings.class, ...)}
  * in BaseMod 5.56 does not add a mod-id prefix, so the JSON key is the full card id.</p>
+ *
+ * <h2>Random curse sources (T027 / EC-010)</h2>
+ *
+ * <p>The card must never be produced by a random curse source. Two layers are used:
+ * BaseMod's {@link NoPools} annotation makes BaseMod strip this card class from every card
+ * pool (including {@code curseCardPool} and {@code srcCurseCardPool}) after each
+ * {@code initializeCardPools}, and
+ * {@code patches.vanilla.CardLibraryGetCursePatch} filters the two
+ * {@code CardLibrary.getCurse} overloads — which is where the vanilla random-curse sources
+ * actually draw from (a private curse map, not the pools; research §R-007 correction).
+ * Together they match the reference card, which is hard-coded out of both the pool and the
+ * curse map in the base game (memory facts f005, f023).</p>
  */
+@NoPools
 public class AnthonysWrathCurse extends CustomCard {
 
     /** Registrable card identifier; also the {@code CardStrings} key (FR-004). */

@@ -28,9 +28,8 @@ import java.util.List;
  *   <li>{@link AddCustomModeModsSubscriber} — registers the custom-mode option (T008);</li>
  *   <li>{@link PostCreateStartingDeckSubscriber} — injects one copy into the starting deck
  *       (T012);</li>
- *   <li>{@link StartGameSubscriber} — resets the run-scoped terminal state at every run
- *       start, new or loaded (T024). The same hook will carry the random-curse-pool
- *       exclusion in user story 4 (T027, research §R-007).</li>
+ *   <li>{@link StartGameSubscriber} — captures the per-run selection and resets the
+ *       run-scoped terminal state at every run start, new or loaded (T024 / T026).</li>
  * </ul>
  *
  * <p>All interfaces are the ones present in the shipped BaseMod 5.56.0 jar (memory fact
@@ -62,6 +61,24 @@ import java.util.List;
  * {@code TwistingMind}, {@code CardLibrary.getAnyColorCard}) and are intentionally not
  * reordered. No vanilla code shuffles a pile's {@code group} list directly. Evidence:
  * {@code memory/log/023}.</p>
+ *
+ * <p><b>User story 4 (T026 / T027).</b> Two separate mechanisms keep unselected runs
+ * untouched and keep the card out of random curse sources:</p>
+ * <ul>
+ *   <li>the per-run selection record lives in {@code run.RunState.beginRun()}, called from
+ *       {@code receiveStartGame} below; every feature component consults it (FR-011);</li>
+ *   <li>the random-curse exclusion does <em>not</em> need this hook: the card class carries
+ *       BaseMod's {@code @NoPools} annotation, which makes BaseMod remove the card from all
+ *       card pools (including {@code curseCardPool} / {@code srcCurseCardPool}) after every
+ *       {@code initializeCardPools}, and {@code patches.vanilla.CardLibraryGetCursePatch}
+ *       filters the two {@code CardLibrary.getCurse} overloads — the actual origin of every
+ *       vanilla random-curse source, which reads the card library's private curse map and
+ *       bypasses the pools (research §R-007 correction; memory fact f023).</li>
+ * </ul>
+ * <p>The T027 note "exclude the card in the {@code StartGame} hook" was superseded by this
+ * split: a pool-only removal would not stop {@code CardLibrary.getCurse()}, and the
+ * {@code @NoPools} hook removes the pools on both the new-run and the loaded-run path
+ * (both rebuild the pools — memory fact f011).</p>
  *
  * <p><b>User story 3 (T024).</b> The hand-entry judgment points are vanilla intercepts, so
  * they are applied through {@code patches.vanilla.CardGroupHandEntryPatch} (postfix on
@@ -115,7 +132,8 @@ public class AnthonysWrathMod
     public void receiveStartGame() {
         // T024: both the new-run and the loaded-run path reach StartGame (research §R-007),
         // so this is where the runtime-only terminal state of the previous run is cleared.
-        // T027 will extend this hook with the random-curse-pool exclusion.
-        RunState.resetDefeatState();
+        // T026: the same hook captures the per-run selection record (the saved custom-mode
+        // list plus the trial gate) that every feature component consults before acting.
+        RunState.beginRun();
     }
 }

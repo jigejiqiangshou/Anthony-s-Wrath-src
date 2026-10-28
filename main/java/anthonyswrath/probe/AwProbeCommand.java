@@ -2,6 +2,7 @@ package anthonyswrath.probe;
 
 import anthonyswrath.cards.AnthonysWrathCurse;
 import anthonyswrath.run.DrawPileOrdering;
+import anthonyswrath.run.RunState;
 import basemod.devcommands.ConsoleCommand;
 import com.megacrit.cardcrawl.actions.common.ShuffleAction;
 import com.megacrit.cardcrawl.cards.AbstractCard;
@@ -24,6 +25,9 @@ import java.util.Locale;
  * <pre>
  * awprobe info             dump floor/room/piles/custom mods
  * awprobe purge            call masterDeck.getPurgeableCards() and log the result
+ * awprobe purgetest        US5/T034 self-check: the curse is in the deck but not purgeable
+ * awprobe curseprobe [n]   US4/T028 self-check: sample CardLibrary.getCurse (both overloads,
+ *                          the vanilla random-curse source), n default 50
  * awprobe cursepool        dump AbstractDungeon.curseCardPool
  * awprobe find &lt;text&gt;     list card IDs containing the text (any case)
  * awprobe addcard &lt;id&gt;    add a copy of the card to masterDeck ({@code bell} = CurseOfTheBell)
@@ -34,6 +38,8 @@ import java.util.Locale;
  *                          cards Reboot / DeepBreath (card-triggered, non-exhausted shuffle)
  * awprobe drawpile         dump drawPile / discardPile (index 0 = bottom), no shuffle
  * awprobe sinktest         deterministic self-check of DrawPileOrdering (US2 / FR-007)
+ * awprobe defeatoff        T032 development-only: keep the curse in the hand (no defeat)
+ * awprobe defeaton         T032 development-only: restore the normal defeat behaviour
  * </pre>
  *
  * <p>Card IDs are resolved case-insensitively and {@code bell} is an alias for
@@ -49,9 +55,14 @@ public class AwProbeCommand extends ConsoleCommand {
     private static final String BELL_ID = "CurseOfTheBell";
 
     private static final String[] SUBCOMMANDS = {
-            "info", "purge", "cursepool", "find", "addcard", "bell", "transform", "shuffledeck",
-            "shuffleaction", "drawpile", "sinktest"
+            "info", "purge", "purgetest", "curseprobe", "cursepool", "find", "addcard", "bell",
+            "transform", "shuffledeck", "shuffleaction", "drawpile", "sinktest",
+            "defeatoff", "defeaton"
     };
+
+    /** Default / maximum sample counts of {@code awprobe curseprobe}. */
+    private static final int CURSE_PROBE_DEFAULT = 50;
+    private static final int CURSE_PROBE_MAX = 500;
 
     public AwProbeCommand() {
         minExtraTokens = 0;
@@ -72,6 +83,10 @@ public class AwProbeCommand extends ConsoleCommand {
                 info();
             } else if ("purge".equals(cmd)) {
                 purge();
+            } else if ("purgetest".equals(cmd)) {
+                purgeTest();
+            } else if ("curseprobe".equals(cmd)) {
+                curseProbe(arg);
             } else if ("cursepool".equals(cmd)) {
                 cursepool();
             } else if ("find".equals(cmd)) {
@@ -92,6 +107,10 @@ public class AwProbeCommand extends ConsoleCommand {
                 drawPile();
             } else if ("sinktest".equals(cmd)) {
                 sinkTest();
+            } else if ("defeatoff".equals(cmd)) {
+                setDefeatSuspended(true);
+            } else if ("defeaton".equals(cmd)) {
+                setDefeatSuspended(false);
             } else {
                 usage();
             }
@@ -131,6 +150,114 @@ public class AwProbeCommand extends ConsoleCommand {
         CardGroup purgeable = p.masterDeck.getPurgeableCards();
         ProbeLog.log("cmd.purge", "masterDeck " + ProbeLog.ids(p.masterDeck)
                 + "\n    purgeable " + ProbeLog.ids(purgeable));
+    }
+
+    /**
+     * US5 / T034 self-check: the curse is in the master deck but never in the candidate list
+     * built by {@code CardGroup.getPurgeableCards()} (T029 / FR-012).
+     *
+     * <p>This is the deterministic command-level evidence; QS-11 additionally checks the
+     * shop / rest-site / Fountain of Cleansing user interfaces.</p>
+     */
+    private static void purgeTest() {
+        AbstractPlayer p = AbstractDungeon.player;
+        if (p == null) {
+            ProbeLog.log("cmd.purgetest", "player=null (start a run first)");
+            return;
+        }
+        CardGroup purgeable = p.masterDeck.getPurgeableCards();
+        boolean inDeck = findInMasterDeck(p, AnthonysWrathCurse.CARD_ID) != null;
+        boolean inPurgeable = groupContains(purgeable, AnthonysWrathCurse.CARD_ID);
+        if (!inDeck) {
+            ProbeLog.log("cmd.purgetest", "SKIP no " + AnthonysWrathCurse.CARD_ID
+                    + " in masterDeck (add it with 'awprobe addcard anthonyswrath:AnthonysWrath')"
+                    + "\n    masterDeck " + ProbeLog.ids(p.masterDeck)
+                    + "\n    purgeable " + ProbeLog.ids(purgeable));
+            return;
+        }
+        boolean pass = !inPurgeable;
+        ProbeLog.log("cmd.purgetest", (pass ? "PASS" : "FAIL")
+                + " inDeck=" + inDeck + " inPurgeable=" + inPurgeable
+                + "\n    masterDeck " + ProbeLog.ids(p.masterDeck)
+                + "\n    purgeable " + ProbeLog.ids(purgeable));
+    }
+
+    /**
+     * US4 / T028 self-check: the vanilla random-curse source never returns this mod's curse
+     * (T027; FR-011, EC-010, SC-004).
+     *
+     * <p>Both {@code CardLibrary.getCurse()} overloads are sampled — the no-argument one used
+     * by {@code AbstractDungeon.returnRandomCurse()} (Cursed Key, cursed chests, events) and
+     * the {@code (avoid, rng)} one used by the curse branch of
+     * {@code AbstractDungeon.transformCard(...)}. A non-zero hit count means the
+     * {@code CardLibraryGetCursePatch} filter is not active and EC-010 is violated.</p>
+     */
+    private static void curseProbe(String rawArg) {
+        int samples = parseSampleCount(rawArg);
+        AbstractCard avoid = prototypeFor(BELL_ID);
+        if (avoid == null) {
+            avoid = new CurseOfTheBell();
+        }
+        int noArgHits = 0;
+        int avoidHits = 0;
+        List<String> seen = new ArrayList<String>();
+        for (int i = 0; i < samples; i++) {
+            AbstractCard plain = CardLibrary.getCurse();
+            if (plain != null && AnthonysWrathCurse.CARD_ID.equals(plain.cardID)) {
+                noArgHits++;
+            }
+            AbstractCard transformed = CardLibrary.getCurse(avoid, AbstractDungeon.cardRandomRng);
+            if (transformed != null && AnthonysWrathCurse.CARD_ID.equals(transformed.cardID)) {
+                avoidHits++;
+            }
+            if (seen.size() < 6 && plain != null && !seen.contains(plain.cardID)) {
+                seen.add(plain.cardID);
+            }
+        }
+        boolean poolClean = !groupContains(AbstractDungeon.curseCardPool, AnthonysWrathCurse.CARD_ID)
+                && !groupContains(AbstractDungeon.srcCurseCardPool, AnthonysWrathCurse.CARD_ID);
+        boolean pass = noArgHits == 0 && avoidHits == 0 && poolClean;
+        ProbeLog.log("cmd.curseprobe", (pass ? "PASS" : "FAIL")
+                + " samples=" + samples + " noArgHits=" + noArgHits + " avoidHits=" + avoidHits
+                + " poolsClean=" + poolClean
+                + "\n    sampleIDs=" + seen
+                + "\n    curseCardPool " + ProbeLog.ids(AbstractDungeon.curseCardPool)
+                + "\n    srcCurseCardPool " + ProbeLog.ids(AbstractDungeon.srcCurseCardPool));
+    }
+
+    /** T032 development-only FR-005 comparison switch (removed together with the probe). */
+    private static void setDefeatSuspended(boolean suspended) {
+        RunState.setDefeatSuspendedForProbe(suspended);
+        ProbeLog.log(suspended ? "cmd.defeatoff" : "cmd.defeaton",
+                "defeatSuspended=" + RunState.isDefeatSuspendedForProbe()
+                        + " (development only; T035 removes this switch)");
+    }
+
+    private static int parseSampleCount(String rawArg) {
+        if (rawArg == null || rawArg.trim().isEmpty()) {
+            return CURSE_PROBE_DEFAULT;
+        }
+        try {
+            int value = Integer.parseInt(rawArg.trim());
+            if (value < 1) {
+                return 1;
+            }
+            return Math.min(value, CURSE_PROBE_MAX);
+        } catch (NumberFormatException ignored) {
+            return CURSE_PROBE_DEFAULT;
+        }
+    }
+
+    private static boolean groupContains(CardGroup group, String cardID) {
+        if (group == null || group.group == null) {
+            return false;
+        }
+        for (AbstractCard card : group.group) {
+            if (card != null && cardID.equals(card.cardID)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static void cursepool() {
@@ -346,8 +473,9 @@ public class AwProbeCommand extends ConsoleCommand {
     }
 
     private static void usage() {
-        ProbeLog.log("cmd.usage", "awprobe info|purge|cursepool|find <text>|addcard <cardID>|bell"
-                + "|transform <cardID>|shuffledeck|shuffleaction|drawpile|sinktest");
+        ProbeLog.log("cmd.usage", "awprobe info|purge|purgetest|curseprobe [n]|cursepool|find <text>"
+                + "|addcard <cardID>|bell|transform <cardID>|shuffledeck|shuffleaction|drawpile"
+                + "|sinktest|defeatoff|defeaton");
     }
 
     /**

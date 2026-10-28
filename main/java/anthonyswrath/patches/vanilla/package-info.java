@@ -14,8 +14,17 @@
  *       later draws once the run is defeated is {@code AbstractPlayerDrawPatch} (prefix on
  *       {@code AbstractPlayer.draw(int)}), and the defeat landing point itself is
  *       {@code run.DefeatOnDraw} (vanilla {@code DeathScreen} flow);</li>
- *   <li>US5 (T029-T031): {@code CardGroup.getPurgeableCards()} filtering and the
- *       {@code FountainOfCurseRemoval} batch loop (R-008).</li>
+ *   <li>US4 (T027): random curse sources (R-007) — the card class carries BaseMod's
+ *       {@code @NoPools} annotation for the card pools, and
+ *       {@code CardLibraryGetCursePatch} filters the two {@code CardLibrary.getCurse}
+ *       overloads, the actual origin of every vanilla random-curse source;</li>
+ *   <li>US5 (T029-T031): unremovable behaviour (R-008) —
+ *       {@code CardGroupGetPurgeableCardsPatch} keeps the card out of every removal /
+ *       transform candidate list, and {@code FountainOfCurseRemovalPatch} brackets the
+ *       bulk-removal loop of the "Fountain of Cleansing" event (which bypasses the
+ *       candidate list). The remaining vanilla removal paths identified by the T031
+ *       enumeration already exclude curses by type / rarity or go through the candidate
+ *       list, so no further intercept is needed (research §R-008).</li>
  * </ul>
  *
  * <h2>Naming convention (T006)</h2>
