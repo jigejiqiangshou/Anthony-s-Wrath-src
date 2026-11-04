@@ -46,6 +46,12 @@ public class AnthonysWrathCurse extends CustomCard {
      * {@code ImageMaster.loadImage}, and libGDX's {@code FileHandle.read()} falls back to
      * {@code Class.getResourceAsStream} for an internal path that does not exist on disk, so
      * the classpath of the mod jar wins in game (research §R-010).
+     *
+     * <p>This 250x190 file is the in-card portrait only. The single-card zoom popup asks
+     * BaseMod for a large portrait, which {@code CustomCard.getPortraitImage()} derives by
+     * inserting {@code _p} before the extension (500x380) — shipped next to this file as
+     * {@code AnthonysWrath_p.jpg} (T042). Without that sibling the popup shows no art
+     * because the derived load fails and returns null.</p>
      */
     private static final String IMAGE_PATH = "anthonyswrath/img/cards/AnthonysWrath.jpg";
 
