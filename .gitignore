@@ -1,5 +1,6 @@
 # src-layer only.
 #
-# Development-time placeholder art (research §R-010): never committed. T036 replaces it
-# with the final portrait under anthonyswrath/img/cards/ and re-checks this rule.
+# Development-time placeholder art (research §R-010): never committed. T036 replaced it
+# with the final portrait under anthonyswrath/img/cards/ (tracked) and re-checked this
+# rule; the ignore stays so any re-generated local placeholder cannot leak into the repo.
 placeholder/

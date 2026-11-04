@@ -2,7 +2,6 @@ package anthonyswrath.cards;
 
 import basemod.abstracts.CustomCard;
 import basemod.patches.com.megacrit.cardcrawl.dungeons.AbstractDungeon.NoPools;
-import com.badlogic.gdx.Gdx;
 import com.megacrit.cardcrawl.cards.AbstractCard;
 import com.megacrit.cardcrawl.characters.AbstractPlayer;
 import com.megacrit.cardcrawl.core.CardCrawlGame;
@@ -41,22 +40,14 @@ public class AnthonysWrathCurse extends CustomCard {
     public static final String CARD_ID = "anthonyswrath:AnthonysWrath";
 
     /**
-     * Development placeholder art. T036 replaces it with the final portrait and moves it
-     * under {@code anthonyswrath/img/cards/}; {@code src/.gitignore} keeps this file out of
-     * the repository.
+     * Final portrait art (T036), tracked in the {@code src} layer at
+     * {@code src/main/resources/anthonyswrath/img/cards/AnthonysWrath.jpg}. The path is a
+     * jar entry relative to the mod classpath: {@code CustomCard} hands it to
+     * {@code ImageMaster.loadImage}, and libGDX's {@code FileHandle.read()} falls back to
+     * {@code Class.getResourceAsStream} for an internal path that does not exist on disk, so
+     * the classpath of the mod jar wins in game (research §R-010).
      */
-    private static final String PLACEHOLDER_IMAGE = "placeholder/AnthonysWrath.png";
-
-    /**
-     * Last-resort portrait bundled with the game jar. The placeholder above is deliberately
-     * untracked (research §R-010), so a build from a clean checkout without that local file
-     * would otherwise hand a missing texture path to {@code ImageMaster.loadImage}
-     * (warning + null texture). Falling back to a game asset keeps such a build renderable
-     * until T036 commits the final art.
-     */
-    private static final String GAME_FALLBACK_IMAGE = "images/cards/locked_attack.png";
-
-    private static final String IMAGE_PATH = resolveImagePath();
+    private static final String IMAGE_PATH = "anthonyswrath/img/cards/AnthonysWrath.jpg";
 
     private static final CardStrings CARD_STRINGS =
             CardCrawlGame.languagePack.getCardStrings(CARD_ID);
@@ -97,15 +88,5 @@ public class AnthonysWrathCurse extends CustomCard {
     public AbstractCard makeCopy() {
         // FR-004: a fresh instance keeps the card's state independent of the original.
         return new AnthonysWrathCurse();
-    }
-
-    /**
-     * Prefers the untracked development placeholder; if that local file is absent (clean
-     * checkout), use a game-bundled image so the card still renders before T036 lands.
-     */
-    private static String resolveImagePath() {
-        return Gdx.files.internal(PLACEHOLDER_IMAGE).exists()
-                ? PLACEHOLDER_IMAGE
-                : GAME_FALLBACK_IMAGE;
     }
 }
