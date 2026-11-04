@@ -82,11 +82,6 @@ public final class DefeatOnDraw {
         if (card == null || !AnthonysWrathCurse.CARD_ID.equals(card.cardID)) {
             return;
         }
-        if (RunState.isDefeatSuspendedForProbe()) {
-            // T032 development-only FR-005 comparison: keep the card in the hand so it can
-            // be compared with the reference card (removed together with the probe by T035).
-            return;
-        }
         if (!RunState.isOptionSelected()) {
             // FR-011 / T026: never end an unselected run.
             return;

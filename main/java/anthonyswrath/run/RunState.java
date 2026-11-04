@@ -70,20 +70,6 @@ public final class RunState {
     private static boolean defeatGuard;
 
     /**
-     * Development-only switch for the FR-005 verification (T032 / research §R-013).
-     *
-     * <p>FR-005 ("cannot be played / cannot be actively consumed") can only be observed
-     * while the curse stays in the hand, which the normal build never allows — the card
-     * ends the run on entry. The probe build can temporarily suspend the defeat through the
-     * {@code awprobe defeatoff} / {@code awprobe defeaton} console commands so the reference
-     * card and this card can be compared under identical conditions (QS-12).</p>
-     *
-     * <p><b>Development only.</b> This flag and its console commands are removed together
-     * with the probe package by T035; the release build has no way to disable the defeat.</p>
-     */
-    private static boolean defeatSuspendedForProbe;
-
-    /**
      * Starts the bookkeeping of a run: captures the selection and clears the terminal flags.
      *
      * <p>Called from {@code StartGameSubscriber.receiveStartGame}, the one BaseMod hook that
@@ -182,29 +168,6 @@ public final class RunState {
         defeatGuard = true;
         defeated = true;
         return true;
-    }
-
-    /**
-     * Returns whether the development-only FR-005 comparison mode is active (T032).
-     *
-     * <p>Only the {@code awprobe} console commands toggle this flag; the release build (after
-     * T035 removes the probe) never sets it, so {@code run.DefeatOnDraw} always settles the
-     * defeat there. See the field comment for the purpose and the removal note.</p>
-     */
-    public static boolean isDefeatSuspendedForProbe() {
-        return defeatSuspendedForProbe;
-    }
-
-    /**
-     * Toggles the development-only FR-005 comparison mode (T032).
-     *
-     * <p>Called only by the {@code awprobe defeatoff} / {@code awprobe defeaton} console
-     * commands (probe package, removed by T035).</p>
-     *
-     * @param suspended {@code true} to keep the curse in the hand without ending the run
-     */
-    public static void setDefeatSuspendedForProbe(boolean suspended) {
-        defeatSuspendedForProbe = suspended;
     }
 
     private RunState() {
