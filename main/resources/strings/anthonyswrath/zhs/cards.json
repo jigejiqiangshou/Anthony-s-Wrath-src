@@ -1,6 +1,6 @@
 {
   "anthonyswrath:AnthonysWrath": {
     "NAME": "安东尼之怒",
-    "DESCRIPTION": "不能被打出。 NL 不能从牌组中移除。"
+    "DESCRIPTION": "不能被打出。 NL 不能从牌组中移除。 NL 每次洗牌后置于抽牌堆底部。 NL 抽到这张牌时死亡。"
   }
 }
